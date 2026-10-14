@@ -1,4 +1,6 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { describeClaudeError, streamClaude } from "@/lib/llm/claude";
+import { describeOpenAIError, streamOpenAI } from "@/lib/llm/openai";
+import { llmProvider } from "@/lib/providers";
 
 type Segment = { speaker: "cliente" | "voce"; text: string };
 type AnswerRequest = {
@@ -7,7 +9,6 @@ type AnswerRequest = {
   question?: string;
 };
 
-const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-opus-5-5";
 const SKIP = "SKIP";
 
 const SYSTEM_PROMPT = `Voce e um copiloto silencioso que ajuda o usuario durante reunioes ao vivo com clientes. So o usuario le o que voce escreve; o cliente nunca ve.
@@ -28,8 +29,6 @@ Nunca invente dados internos da empresa do usuario.`;
 const AUTO_INSTRUCTION = `Olhe a fala mais recente do [Cliente] no final da transcricao. Se ela contem uma pergunta, termo, sigla ou assunto que valha uma resposta de apoio e que ainda nao foi respondido acima, responda no formato definido. Se for conversa trivial (cumprimentos, confirmacoes, logistica, "ok", "entendi"), se o proprio usuario ja respondeu bem, ou se nao houver nada util a acrescentar, responda exatamente ${SKIP} e nada mais.`;
 
 const MANUAL_INSTRUCTION = `O usuario pediu ajuda agora. Identifique a pergunta ou assunto mais recente do [Cliente] que precisa de resposta e responda no formato definido. Nunca responda ${SKIP}.`;
-
-const client = new Anthropic();
 
 function formatTranscript(transcript: Segment[]): string {
   // Keep the prompt short: the last ~6000 characters are plenty for context.
@@ -56,59 +55,43 @@ function buildUserMessage(body: AnswerRequest): string {
 }
 
 function describeError(err: unknown): string {
-  if (err instanceof Anthropic.AuthenticationError) {
-    return "ANTHROPIC_API_KEY invalida ou ausente.";
-  }
-  if (err instanceof Anthropic.RateLimitError) {
-    return "Limite de requisicoes da Anthropic atingido. Tente de novo em instantes.";
-  }
-  if (err instanceof Anthropic.APIError) {
-    return `Erro da API Anthropic (${err.status}): ${err.message}`;
-  }
-  return err instanceof Error ? err.message : String(err);
+  return (
+    describeClaudeError(err) ??
+    describeOpenAIError(err) ??
+    (err instanceof Error ? err.message : String(err))
+  );
 }
 
 export async function POST(request: Request) {
   const body = (await request.json()) as AnswerRequest;
+  const provider = llmProvider();
+  if (!provider) {
+    return new Response("**Erro:** configure ANTHROPIC_API_KEY ou OPENAI_API_KEY em .env.local", {
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    });
+  }
+
   const encoder = new TextEncoder();
-
-  const stream = client.beta.messages.stream({
-    model: MODEL,
-    max_tokens: 8000,
-    // Low effort keeps latency down; these answers are short lookups.
-    output_config: { effort: "low" },
-    betas: ["server-side-fallback-2026-07-01"],
-    fallbacks: "default",
-    system: SYSTEM_PROMPT,
-    messages: [{ role: "user", content: buildUserMessage(body) }],
-  });
-
-  request.signal.addEventListener("abort", () => stream.abort());
+  const abort = new AbortController();
+  request.signal.addEventListener("abort", () => abort.abort());
+  const generate = provider === "anthropic" ? streamClaude : streamOpenAI;
+  const chunks = generate(SYSTEM_PROMPT, buildUserMessage(body), abort.signal);
 
   const output = new ReadableStream<Uint8Array>({
     async start(controller) {
       try {
-        for await (const event of stream) {
-          if (
-            event.type === "content_block_delta" &&
-            event.delta.type === "text_delta"
-          ) {
-            controller.enqueue(encoder.encode(event.delta.text));
-          }
-        }
-        const final = await stream.finalMessage();
-        if (final.stop_reason === "refusal") {
-          controller.enqueue(encoder.encode("\n\n_(O modelo recusou responder.)_"));
+        for await (const text of chunks) {
+          controller.enqueue(encoder.encode(text));
         }
       } catch (err) {
-        if (!request.signal.aborted) {
+        if (!abort.signal.aborted) {
           controller.enqueue(encoder.encode(`\n\n**Erro:** ${describeError(err)}`));
         }
       }
       controller.close();
     },
     cancel() {
-      stream.abort();
+      abort.abort();
     },
   });
 

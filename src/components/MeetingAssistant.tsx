@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { startTranscriber, type LiveTranscriber, type TranscriptEvent } from "@/lib/deepgram";
+import { startTranscriber, type LiveTranscriber, type TranscriptEvent } from "@/lib/stt";
 import { Markdown } from "./Markdown";
 
 type Speaker = "cliente" | "voce";
@@ -240,7 +240,13 @@ export function MeetingAssistant() {
 
       const onError = (message: string) => setError(message);
       transcribers.current.push(
-        await startTranscriber(display, language, (e) => handleEvent("cliente", e), onError),
+        await startTranscriber({
+          stream: display,
+          language,
+          source: "meeting",
+          onEvent: (e) => handleEvent("cliente", e),
+          onError,
+        }),
       );
 
       if (useMic) {
@@ -249,7 +255,13 @@ export function MeetingAssistant() {
         });
         streams.current.push(mic);
         transcribers.current.push(
-          await startTranscriber(mic, language, (e) => handleEvent("voce", e), onError),
+          await startTranscriber({
+            stream: mic,
+            language,
+            source: "mic",
+            onEvent: (e) => handleEvent("voce", e),
+            onError,
+          }),
         );
       }
       setRunning(true);

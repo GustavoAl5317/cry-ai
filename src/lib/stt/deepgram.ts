@@ -1,9 +1,4 @@
-export type TranscriptEvent =
-  | { kind: "interim"; text: string }
-  | { kind: "final"; text: string; speechFinal: boolean }
-  | { kind: "utterance-end" };
-
-export type LiveTranscriber = { stop: () => void };
+import type { LiveTranscriber, TranscriberOptions } from "./types";
 
 type DeepgramMessage = {
   type: string;
@@ -11,15 +6,6 @@ type DeepgramMessage = {
   speech_final?: boolean;
   channel?: { alternatives?: { transcript?: string }[] };
 };
-
-async function fetchToken(): Promise<string> {
-  const res = await fetch("/api/deepgram-token", { method: "POST" });
-  const data = (await res.json()) as { token?: string; error?: string };
-  if (!res.ok || !data.token) {
-    throw new Error(data.error ?? "Falha ao obter token do Deepgram");
-  }
-  return data.token;
-}
 
 function pickMimeType(): string | undefined {
   const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus"];
@@ -31,14 +17,10 @@ function pickMimeType(): string | undefined {
  * Deepgram detects the WebM/Opus container itself, so MediaRecorder chunks
  * are sent as-is.
  */
-export async function startTranscriber(
-  stream: MediaStream,
-  language: string,
-  onEvent: (event: TranscriptEvent) => void,
-  onError: (message: string) => void,
-): Promise<LiveTranscriber> {
-  const token = await fetchToken();
-
+export function startDeepgram(
+  token: string,
+  { stream, language, onEvent, onError }: TranscriberOptions,
+): LiveTranscriber {
   const params = new URLSearchParams({
     model: "nova-3",
     language,
