@@ -1,24 +1,18 @@
 # Copiloto de Reuniao
 
-Escuta a reuniao (Teams, Google Meet ou Zoom), transcreve ao vivo e mostra na sua tela respostas curtas para perguntas e termos que o cliente menciona. So voce ve as respostas.
+Agente para reunioes com clientes (Teams, Zoom, Meet, Webex). Antes da reuniao voce alimenta o copiloto com documentos, links e sistemas (MCP) e ele monta um briefing. Durante a chamada ele escuta, transcreve e mostra respostas, pesquisas e codigo so na sua tela. Depois, guarda o historico e escreve o resumo com proximos passos.
 
-## Como funciona
+## Fluxo
 
-1. O navegador captura o audio da reuniao via compartilhamento de tela (com audio) e, opcionalmente, o seu microfone.
-2. Cada fonte e transcrita ao vivo, usando um token temporario gerado em `/api/stt-token`. A fala da reuniao aparece como **Cliente** e a sua como **Voce**.
-3. Quando o cliente termina uma fala, `/api/answer` manda a transcricao recente para o modelo. Se houver pergunta ou termo que valha resposta, ela aparece em streaming no painel; se nao, o modelo responde `SKIP` e nada aparece.
-4. Botao **Responder agora** ou o campo de texto pedem uma resposta na hora.
+1. **Dashboard** (`/`): crie uma reuniao (titulo e cliente). O historico de todas fica listado.
+2. **Preparar**: objetivo e anotacoes, documentos (PDF, Word, PowerPoint, Excel, CSV, texto, codigo), links de sites e sistemas MCP. **Gerar briefing** pesquisa o cliente na web, le os documentos e sistemas e entrega perguntas provaveis com respostas, objecoes e glossario.
+3. **Ao vivo**: **Iniciar escuta** e o agente responde sozinho.
+   - **Auto**: a cada fala do cliente decide se ignora, responde rapido ou escala para profundo (codigo, pesquisa, dados de sistemas).
+   - **Rapido** / **Profundo**: pede uma resposta para a ultima fala. Profundo usa busca na web, seus documentos, MCP e gera codigo completo com botao de copiar.
+   - Campo de texto: pergunte qualquer coisa ou peca codigo durante a reuniao.
+4. **Resumo**: ao encerrar, o resumo (decisoes, proximos passos, perguntas em aberto, e-mail de follow-up) e gerado e fica salvo com a transcricao e as respostas.
 
-## Provedores
-
-O app escolhe pelos valores em `.env.local`:
-
-| Funcao | Com so `OPENAI_API_KEY` | Opcional |
-| --- | --- | --- |
-| Transcricao | OpenAI Realtime (`gpt-4o-transcribe`, WebRTC) | Deepgram `nova-3` (`DEEPGRAM_API_KEY`) |
-| Respostas | OpenAI (`gpt-5.5`) | Claude `claude-opus-5-5` (`ANTHROPIC_API_KEY`) |
-
-Se houver mais de uma chave, Deepgram e Claude tem prioridade. Use `STT_PROVIDER` e `LLM_PROVIDER` para forcar.
+Tudo fica salvo em `data/` neste computador (fora do git). Documentos sao indexados num vector store da sua conta OpenAI para a busca.
 
 ## Configuracao
 
@@ -28,42 +22,47 @@ Se houver mais de uma chave, Deepgram e Claude tem prioridade. Use `STT_PROVIDER
 
 ```bash
 npm install
-npm run dev
-```
-
-4. Abra http://localhost:3000 no **Chrome ou Edge**.
-
-## App desktop (invisivel ao compartilhar tela)
-
-```bash
 npm run desktop
 ```
 
-Abre o copiloto numa janela pequena, sempre por cima, que **nao aparece quando voce compartilha a tela** no Teams, Zoom, Meet ou Webex (usa `setContentProtection` do Electron, que no Windows 10 2004+ exclui a janela de qualquer captura). Voce continua vendo a janela normalmente.
+`npm run desktop` abre o app numa janela que nao aparece quando voce compartilha a tela. Para usar no navegador, rode `npm run dev` e abra http://localhost:3000 no Chrome ou Edge.
 
-- Usa o servidor que ja estiver rodando em `localhost:3000`; se nao houver, sobe `npm run dev` sozinho.
-- **Iniciar escuta** nao abre seletor: captura todo o audio do sistema (onde chega a voz do cliente) e o microfone.
-- `Ctrl+Alt+Espaco`: responde a ultima fala do cliente sem tirar o foco da reuniao.
+## App desktop (invisivel ao compartilhar tela)
+
+- Janela sempre por cima, excluida de qualquer captura de tela (`setContentProtection` do Electron; Windows 10 2004+).
+- **Iniciar escuta** nao pede para compartilhar nada: captura o audio do sistema (onde chega a voz do cliente) e o microfone.
+- `Ctrl+Alt+Espaco`: resposta rapida para a ultima fala do cliente, sem tirar o foco da reuniao.
 - `Ctrl+Alt+H`: esconde ou mostra a janela.
+- Usa o servidor em `localhost:3000` se ja estiver rodando; senao sobe `npm run dev` sozinho.
 
-No navegador, a "Janela flutuante" **aparece** se voce compartilhar a tela inteira. Use o app desktop nesse caso.
+No navegador, o Chrome so libera o audio da reuniao via "compartilhar tela/guia" com audio. Esse compartilhamento vai so para o copiloto, nao para o cliente. A janela flutuante do navegador aparece se voce compartilhar a tela inteira na reuniao; use o app desktop nesse caso.
 
-## Uso na reuniao (navegador)
+## Conexoes MCP
 
-- **Teams ou Zoom (app desktop):** clique em **Iniciar escuta**, escolha **Tela inteira** e marque **Compartilhar audio do sistema**.
-- **Google Meet (navegador):** escolha a **guia** do Meet e marque **Compartilhar audio da guia**.
-- Clique em **Janela flutuante** para deixar as respostas sempre visiveis por cima da reuniao.
-- Use fone de ouvido: sem fone, o microfone tambem capta a voz do cliente.
+Em **Conexoes MCP** (`/config`) adicione os sistemas e, em cada reuniao, escolha quais usar:
 
-## Ajustes
+| Sistema | Como |
+| --- | --- |
+| GitHub | `https://api.githubcopilot.com/mcp/` + personal access token |
+| Notion | `https://mcp.notion.com/mcp` + access token OAuth |
+| Google Drive | conector `connector_googledrive` da OpenAI + access token OAuth do Google |
+| HubSpot, Salesforce, Jira e outros | URL do servidor MCP remoto da plataforma + token |
 
-- `OPENAI_MODEL` ou `ANTHROPIC_MODEL` em `.env.local` trocam o modelo de respostas.
-- O prompt fica em `src/app/api/answer/route.ts`.
-- Idioma da transcricao no seletor do topo (use **Multilingue** se o cliente mistura idiomas).
+Tokens ficam so em `data/settings.json`. MCP e documentos funcionam com a OpenAI; com Claude (`ANTHROPIC_API_KEY`) o agente usa contexto e busca na web.
+
+## Provedores
+
+| Funcao | Padrao (so `OPENAI_API_KEY`) | Opcional |
+| --- | --- | --- |
+| Transcricao | OpenAI Realtime (`gpt-4o-transcribe`, WebRTC) | Deepgram `nova-3` (`DEEPGRAM_API_KEY`) |
+| Respostas, briefing, resumo | OpenAI (`gpt-5.5`, `OPENAI_MODEL`) | Claude `claude-opus-5-5` (`ANTHROPIC_API_KEY`) |
+
+Com mais de uma chave, Deepgram e Claude tem prioridade; `STT_PROVIDER` e `LLM_PROVIDER` forcam a escolha. Prompts em `src/lib/agent/prompts.ts`.
 
 ## Custo aproximado
 
-- Transcricao (OpenAI ou Deepgram): cobrada por minuto de audio, por fonte (reuniao + microfone = 2 fontes).
-- Respostas: uma chamada curta a cada fala do cliente com 4+ palavras.
+- Transcricao: por minuto de audio, por fonte (reuniao + microfone = 2).
+- Respostas auto/rapidas: chamada curta com raciocinio baixo. Profundo e briefing: raciocinio medio, busca na web e ferramentas, mais caros e mais lentos.
+- Documentos: armazenamento do vector store na OpenAI.
 
 Avise os participantes, conforme a lei e a politica da sua empresa, que a reuniao esta sendo transcrita.

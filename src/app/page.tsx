@@ -1,5 +1,5 @@
-import { MeetingAssistant } from "@/components/MeetingAssistant";
+import { Dashboard } from "@/components/Dashboard";
 
 export default function Home() {
-  return <MeetingAssistant />;
+  return <Dashboard />;
 }

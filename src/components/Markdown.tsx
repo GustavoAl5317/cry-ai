@@ -1,46 +1,65 @@
-import type { ReactNode } from "react";
+"use client";
 
-// Renders the small markdown subset the answer prompt asks for:
-// **bold**, _italic_, and "- " bullet lines.
-function inline(text: string): ReactNode[] {
-  return text.split(/(\*\*[^*]+\*\*|_[^_]+_)/g).map((part, i) => {
-    if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
-      return <strong key={i}>{part.slice(2, -2)}</strong>;
-    }
-    if (part.startsWith("_") && part.endsWith("_") && part.length > 2) {
-      return <em key={i}>{part.slice(1, -1)}</em>;
-    }
-    return part;
-  });
+import { Check, Copy } from "lucide-react";
+import { useState, type ComponentProps } from "react";
+import ReactMarkdown from "react-markdown";
+import rehypeHighlight from "rehype-highlight";
+import remarkGfm from "remark-gfm";
+
+function textOf(node: unknown): string {
+  if (typeof node === "string") return node;
+  if (Array.isArray(node)) return node.map(textOf).join("");
+  if (node && typeof node === "object" && "props" in node) {
+    return textOf((node as { props: { children?: unknown } }).props.children);
+  }
+  return "";
+}
+
+function CodeBlock({ children, ...rest }: ComponentProps<"pre">) {
+  const [copied, setCopied] = useState(false);
+  const code = textOf(children);
+  const lang = /language-(\w+)/.exec(
+    (children as { props?: { className?: string } })?.props?.className ?? "",
+  )?.[1];
+
+  const copy = async () => {
+    await navigator.clipboard.writeText(code.replace(/\n$/, ""));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-ink-700 bg-[#0b0b10]">
+      <div className="flex items-center justify-between border-b border-ink-700 px-3 py-1.5 font-mono text-[11px] text-zinc-500">
+        <span>{lang ?? "codigo"}</span>
+        <button
+          onClick={copy}
+          className="flex items-center gap-1 rounded px-1.5 py-0.5 text-zinc-400 hover:bg-ink-800 hover:text-zinc-100"
+        >
+          {copied ? <Check size={12} /> : <Copy size={12} />}
+          {copied ? "Copiado" : "Copiar"}
+        </button>
+      </div>
+      <pre {...rest} className="overflow-x-auto p-3 font-mono text-[12.5px] leading-relaxed">
+        {children}
+      </pre>
+    </div>
+  );
 }
 
 export function Markdown({ text }: { text: string }) {
-  const blocks: ReactNode[] = [];
-  let bullets: string[] = [];
-
-  const flush = () => {
-    if (bullets.length === 0) return;
-    blocks.push(
-      <ul key={`ul-${blocks.length}`} className="ml-4 list-disc space-y-1">
-        {bullets.map((b, i) => (
-          <li key={i}>{inline(b)}</li>
-        ))}
-      </ul>,
-    );
-    bullets = [];
-  };
-
-  for (const raw of text.split("\n")) {
-    const line = raw.trim();
-    const bullet = line.match(/^[-*•]\s+(.*)$/);
-    if (bullet) {
-      bullets.push(bullet[1]);
-      continue;
-    }
-    flush();
-    if (line) blocks.push(<p key={`p-${blocks.length}`}>{inline(line)}</p>);
-  }
-  flush();
-
-  return <div className="space-y-2">{blocks}</div>;
+  return (
+    <div className="prose-answer">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[[rehypeHighlight, { detect: true }]]}
+        components={{
+          pre: CodeBlock,
+          a: (props) => <a {...props} target="_blank" rel="noreferrer" />,
+        }}
+      >
+        {text}
+      </ReactMarkdown>
+    </div>
+  );
 }

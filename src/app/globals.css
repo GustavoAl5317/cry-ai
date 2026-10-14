@@ -1,1 +1,119 @@
 @import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --color-ink-950: #07070a;
+  --color-ink-900: #0e0e13;
+  --color-ink-850: #13131a;
+  --color-ink-800: #1a1a22;
+  --color-ink-700: #26262f;
+}
+
+html,
+body {
+  background: var(--color-ink-950);
+  color-scheme: dark;
+}
+
+/* Thin, quiet scrollbars for the dense panels. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2a2a33 transparent;
+}
+
+/* Answer cards: markdown rendered by react-markdown. */
+.prose-answer {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: #e4e4e7;
+}
+.prose-answer > * + * {
+  margin-top: 0.6em;
+}
+.prose-answer p:first-child strong:only-child {
+  display: block;
+  font-size: 1.02rem;
+  line-height: 1.45;
+  color: #fafafa;
+}
+.prose-answer h1,
+.prose-answer h2,
+.prose-answer h3 {
+  font-weight: 600;
+  color: #fafafa;
+  margin-top: 1.1em;
+}
+.prose-answer h2 {
+  font-size: 1rem;
+  padding-bottom: 0.25em;
+  border-bottom: 1px solid #26262f;
+}
+.prose-answer h3 {
+  font-size: 0.95rem;
+}
+.prose-answer ul,
+.prose-answer ol {
+  padding-left: 1.2em;
+}
+.prose-answer ul {
+  list-style: disc;
+}
+.prose-answer ol {
+  list-style: decimal;
+}
+.prose-answer li + li {
+  margin-top: 0.25em;
+}
+.prose-answer li::marker {
+  color: #71717a;
+}
+.prose-answer a {
+  color: #a78bfa;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.prose-answer :not(pre) > code {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.85em;
+  padding: 0.1em 0.35em;
+  border-radius: 0.3em;
+  background: #1f1f28;
+  color: #f4f4f5;
+}
+.prose-answer table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+.prose-answer th,
+.prose-answer td {
+  border: 1px solid #26262f;
+  padding: 0.35em 0.6em;
+  text-align: left;
+}
+.prose-answer th {
+  background: #14141b;
+  font-weight: 600;
+}
+.prose-answer blockquote {
+  border-left: 2px solid #3f3f46;
+  padding-left: 0.8em;
+  color: #a1a1aa;
+}
+.prose-answer pre code.hljs {
+  background: transparent;
+  padding: 0;
+}
+
+@keyframes pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 rgb(52 211 153 / 0.5);
+  }
+  100% {
+    box-shadow: 0 0 0 8px rgb(52 211 153 / 0);
+  }
+}
+.live-dot {
+  animation: pulse-ring 1.6s ease-out infinite;
+}
