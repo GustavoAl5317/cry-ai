@@ -33,7 +33,22 @@ npm run dev
 
 4. Abra http://localhost:3000 no **Chrome ou Edge**.
 
-## Uso na reuniao
+## App desktop (invisivel ao compartilhar tela)
+
+```bash
+npm run desktop
+```
+
+Abre o copiloto numa janela pequena, sempre por cima, que **nao aparece quando voce compartilha a tela** no Teams, Zoom, Meet ou Webex (usa `setContentProtection` do Electron, que no Windows 10 2004+ exclui a janela de qualquer captura). Voce continua vendo a janela normalmente.
+
+- Usa o servidor que ja estiver rodando em `localhost:3000`; se nao houver, sobe `npm run dev` sozinho.
+- **Iniciar escuta** nao abre seletor: captura todo o audio do sistema (onde chega a voz do cliente) e o microfone.
+- `Ctrl+Alt+Espaco`: responde a ultima fala do cliente sem tirar o foco da reuniao.
+- `Ctrl+Alt+H`: esconde ou mostra a janela.
+
+No navegador, a "Janela flutuante" **aparece** se voce compartilhar a tela inteira. Use o app desktop nesse caso.
+
+## Uso na reuniao (navegador)
 
 - **Teams ou Zoom (app desktop):** clique em **Iniciar escuta**, escolha **Tela inteira** e marque **Compartilhar audio do sistema**.
 - **Google Meet (navegador):** escolha a **guia** do Meet e marque **Compartilhar audio da guia**.

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { startTranscriber, type LiveTranscriber, type TranscriptEvent } from "@/lib/stt";
 import { Markdown } from "./Markdown";
@@ -28,6 +28,9 @@ const LANGUAGES = [
   { value: "en", label: "Ingles" },
   { value: "es", label: "Espanhol" },
 ];
+
+const noopSubscribe = () => () => {};
+const isDesktopApp = () => navigator.userAgent.includes("Electron");
 
 function countWords(text: string) {
   return text.trim().split(/\s+/).filter(Boolean).length;
@@ -65,6 +68,7 @@ export function MeetingAssistant() {
   const [question, setQuestion] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pipWindow, setPipWindow] = useState<Window | null>(null);
+  const desktop = useSyncExternalStore(noopSubscribe, isDesktopApp, () => false);
 
   const segmentsRef = useRef<Segment[]>([]);
   const openSegment = useRef<Record<Speaker, number | null>>({ cliente: null, voce: null });
@@ -279,6 +283,13 @@ export function MeetingAssistant() {
 
   useEffect(() => stop, [stop]);
 
+  // The desktop app fires this from a global shortcut.
+  useEffect(() => {
+    const onAnswerNow = () => void requestAnswer("manual");
+    window.addEventListener("copilot:answer-now", onAnswerNow);
+    return () => window.removeEventListener("copilot:answer-now", onAnswerNow);
+  }, [requestAnswer]);
+
   const openFloating = useCallback(async () => {
     const pip = (window as Window & { documentPictureInPicture?: DocumentPictureInPicture })
       .documentPictureInPicture;
@@ -348,13 +359,17 @@ export function MeetingAssistant() {
           Responder automatico
         </label>
 
-        <button
-          onClick={openFloating}
-          disabled={pipWindow !== null}
-          className="rounded-md border border-neutral-700 px-3 py-1.5 text-sm hover:bg-neutral-800 disabled:opacity-50"
-        >
-          Janela flutuante
-        </button>
+        {/* The desktop window already floats and is hidden from screen
+            capture; a browser pop-out would not be. */}
+        {!desktop && (
+          <button
+            onClick={openFloating}
+            disabled={pipWindow !== null}
+            className="rounded-md border border-neutral-700 px-3 py-1.5 text-sm hover:bg-neutral-800 disabled:opacity-50"
+          >
+            Janela flutuante
+          </button>
+        )}
 
         {running ? (
           <button
@@ -383,7 +398,13 @@ export function MeetingAssistant() {
         </div>
       )}
 
-      <main className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[1.3fr_1fr]">
+      {desktop && (
+        <p className="border-b border-neutral-800 px-4 py-1.5 text-[11px] text-neutral-500">
+          Invisivel ao compartilhar tela. Ctrl+Alt+Espaco responde agora, Ctrl+Alt+H esconde/mostra.
+        </p>
+      )}
+
+      <main className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[3fr_2fr] lg:grid-cols-[1.3fr_1fr] lg:grid-rows-1">
         <section className="flex min-h-0 flex-col border-neutral-800 lg:border-r">
           {pipWindow ? (
             <div className="flex flex-1 items-center justify-center p-8 text-center text-sm text-neutral-400">
