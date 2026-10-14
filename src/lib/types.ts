@@ -58,10 +58,18 @@ export type McpServer = {
   /** Sent as the Authorization bearer token (OAuth access token or API token). */
   token?: string;
   enabled: boolean;
+  /** Off by default: only tools whose names look read-only are exposed. */
+  allowWrites?: boolean;
+  /** Tool names last listed from the server, used to build the read-only list. */
+  toolNames?: string[];
 };
 
 /** McpServer as sent to the browser: the token never leaves the server. */
-export type PublicMcpServer = Omit<McpServer, "token"> & { hasToken: boolean };
+export type PublicMcpServer = Omit<McpServer, "token" | "toolNames"> & {
+  hasToken: boolean;
+  toolCount?: number;
+  readOnlyCount?: number;
+};
 
 export type Settings = {
   vectorStoreId?: string;

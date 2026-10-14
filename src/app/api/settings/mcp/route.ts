@@ -1,7 +1,13 @@
+import { cleanToken, isReadOnlyTool } from "@/lib/mcp";
 import { newId, getSettings, updateSettings } from "@/lib/store";
 import type { McpServer, PublicMcpServer } from "@/lib/types";
 
-const toPublic = ({ token, ...rest }: McpServer): PublicMcpServer => ({ ...rest, hasToken: Boolean(token) });
+const toPublic = ({ token, toolNames, ...rest }: McpServer): PublicMcpServer => ({
+  ...rest,
+  hasToken: Boolean(token),
+  toolCount: toolNames?.length,
+  readOnlyCount: toolNames?.filter(isReadOnlyTool).length,
+});
 
 export async function GET() {
   const settings = await getSettings();
@@ -19,7 +25,7 @@ export async function POST(request: Request) {
     description: input.description?.trim() || undefined,
     url: input.url?.trim() || undefined,
     connectorId: input.connectorId || undefined,
-    token: input.token?.trim() || undefined,
+    token: cleanToken(input.token),
     enabled: true,
   };
   await updateSettings((s) => {
@@ -38,8 +44,9 @@ export async function PATCH(request: Request) {
     if (input.description !== undefined) server.description = input.description.trim() || undefined;
     if (input.url !== undefined) server.url = input.url.trim() || undefined;
     // An empty token field means "keep the current one".
-    if (input.token) server.token = input.token.trim();
+    if (cleanToken(input.token)) server.token = cleanToken(input.token);
     if (input.enabled !== undefined) server.enabled = input.enabled;
+    if (input.allowWrites !== undefined) server.allowWrites = input.allowWrites;
     updated = server;
   });
   if (!updated) return Response.json({ error: "Servidor nao encontrado" }, { status: 404 });

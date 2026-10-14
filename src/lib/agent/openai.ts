@@ -1,5 +1,6 @@
 import "server-only";
 import OpenAI from "openai";
+import { mcpErrorText, mcpTool, serverLabel } from "../mcp";
 import type { AgentEvent } from "../types";
 import type { AgentPlan } from "./index";
 
@@ -7,8 +8,6 @@ const MODEL = process.env.OPENAI_MODEL ?? "gpt-5.5";
 
 // Created on first use: the constructor throws when OPENAI_API_KEY is unset.
 let client: OpenAI | undefined;
-
-const label = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") || "mcp";
 
 function buildTools(plan: AgentPlan): OpenAI.Responses.Tool[] {
   const tools: OpenAI.Responses.Tool[] = [];
@@ -21,31 +20,22 @@ function buildTools(plan: AgentPlan): OpenAI.Responses.Tool[] {
     });
   }
   if (plan.web) tools.push({ type: "web_search" });
-  for (const server of plan.mcp) {
-    tools.push({
-      type: "mcp",
-      server_label: label(server.label),
-      server_description: server.description,
-      ...(server.connectorId
-        ? { connector_id: server.connectorId as "connector_googledrive" }
-        : { server_url: server.url }),
-      ...(server.token && { authorization: server.token }),
-      require_approval: "never",
-    });
-  }
+  tools.push(...plan.mcp.map(mcpTool));
   return tools;
 }
 
-function describe(errorMessage: unknown): string {
-  if (errorMessage instanceof OpenAI.AuthenticationError) return "OPENAI_API_KEY invalida ou ausente.";
-  if (errorMessage instanceof OpenAI.RateLimitError) return "Limite ou credito da OpenAI atingido.";
-  if (errorMessage instanceof OpenAI.APIError) return `OpenAI ${errorMessage.status}: ${errorMessage.message}`;
-  return errorMessage instanceof Error ? errorMessage.message : String(errorMessage);
+function describe(err: unknown, plan: AgentPlan): string {
+  const mcp = mcpErrorText(err, plan.mcp);
+  if (mcp) return mcp;
+  if (err instanceof OpenAI.AuthenticationError) return "OPENAI_API_KEY invalida ou ausente.";
+  if (err instanceof OpenAI.RateLimitError) return "Limite ou credito da OpenAI atingido.";
+  if (err instanceof OpenAI.APIError) return `OpenAI ${err.status}: ${err.message}`;
+  return err instanceof Error ? err.message : String(err);
 }
 
 export async function* runOpenAI(plan: AgentPlan, signal: AbortSignal): AsyncGenerator<AgentEvent> {
   client ??= new OpenAI();
-  const mcpNames = new Map(plan.mcp.map((s) => [label(s.label), s.label]));
+  const mcpNames = new Map(plan.mcp.map((s) => [serverLabel(s.label), s.label]));
 
   let stream;
   try {
@@ -62,7 +52,7 @@ export async function* runOpenAI(plan: AgentPlan, signal: AbortSignal): AsyncGen
       { signal },
     );
   } catch (err) {
-    yield { t: "error", text: describe(err) };
+    yield { t: "error", text: describe(err, plan) };
     return;
   }
 
@@ -86,12 +76,15 @@ export async function* runOpenAI(plan: AgentPlan, signal: AbortSignal): AsyncGen
         case "response.failed":
           yield { t: "error", text: event.response.error?.message ?? "A OpenAI nao conseguiu responder" };
           break;
+        case "response.mcp_call.failed":
+          yield { t: "status", text: "Uma consulta ao sistema conectado falhou" };
+          break;
         case "error":
           yield { t: "error", text: event.message };
           break;
       }
     }
   } catch (err) {
-    if (!signal.aborted) yield { t: "error", text: describe(err) };
+    if (!signal.aborted) yield { t: "error", text: describe(err, plan) };
   }
 }

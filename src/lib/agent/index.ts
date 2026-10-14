@@ -1,5 +1,6 @@
 import "server-only";
 import { getVectorStoreId } from "../docs";
+import { withToolNames } from "../mcp";
 import { llmProvider } from "../providers";
 import { getDoc, getSettings } from "../store";
 import type { AgentEvent, AnswerMode, McpServer, Meeting } from "../types";
@@ -50,16 +51,19 @@ export async function* runAgent(
 
   // Documents and MCP run through OpenAI's hosted tools.
   let docs: AgentPlan["docs"];
-  let mcp: McpServer[] = [];
+  let connected: McpServer[] = [];
   if (provider === "openai" && meeting && kind !== "summary") {
     const vectorStoreId = await getVectorStoreId();
     const docIds = await readyDocIds(meeting);
     if (vectorStoreId && docIds.length) docs = { vectorStoreId, docIds };
-    if (tools) {
-      const { mcpServers } = await getSettings();
-      mcp = mcpServers.filter((s) => s.enabled && meeting.mcpServerIds.includes(s.id));
-    }
+    const { mcpServers } = await getSettings();
+    connected = mcpServers.filter((s) => s.enabled && meeting.mcpServerIds.includes(s.id));
   }
+  // Fast answers skip MCP (listing tools is slow) but must know the systems
+  // exist, so auto mode can escalate to a deep answer that queries them.
+  const mcp = tools ? await withToolNames(connected) : [];
+  const describe = (s: McpServer) =>
+    `${s.label}${s.description ? ` (${s.description})` : ""}${s.allowWrites ? "" : " [somente leitura]"}`;
 
   const plan: AgentPlan = {
     effort,
@@ -71,7 +75,8 @@ export async function* runAgent(
     instructions: buildInstructions(meeting, {
       docs: Boolean(docs),
       web: tools,
-      mcp: mcp.map((s) => s.label),
+      mcp: mcp.map(describe),
+      deferredMcp: tools ? [] : connected.map(describe),
     }),
   };
 

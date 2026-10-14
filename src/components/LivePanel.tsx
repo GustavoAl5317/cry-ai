@@ -192,15 +192,17 @@ export function LivePanel({
             },
             onText: (full) => {
               // Auto answers stay hidden until they cannot be SKIP or DEEP.
-              const hidden = mode === "auto" && mayBeControl(full);
+              const hidden = mode !== "deep" && mayBeControl(full);
               answer = { ...answer, text: full, hidden, status: undefined };
               if (!hidden) setAnswer(answer);
             },
           },
         );
         const t = text.trim();
-        if (mode === "auto" && (t === SKIP || t === DEEP)) {
+        if ((mode === "auto" && t === SKIP) || (mode !== "deep" && t === DEEP)) {
           escalate = t === DEEP;
+          // A quick answer showed a placeholder card; the deep answer replaces it.
+          setAnswers((prev) => prev.filter((a) => a.id !== answer.id));
         } else {
           answer = { ...answer, text, done: true, hidden: false, status: undefined };
           setAnswer(answer);

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Plug, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, CircleAlert, Plug, PlugZap, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/client";
@@ -53,6 +53,7 @@ export function SettingsPage() {
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [tests, setTests] = useState<Record<string, TestResult | "testing">>({});
 
   useEffect(() => {
     api<PublicMcpServer[]>("/api/settings/mcp").then(setServers).catch((e: Error) => setError(e.message));
@@ -84,6 +85,25 @@ export function SettingsPage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const test = async (s: PublicMcpServer) => {
+    setTests((prev) => ({ ...prev, [s.id]: "testing" }));
+    const result = await api<TestResult>("/api/settings/mcp/test", "POST", { id: s.id }).catch(
+      (e: Error): TestResult => ({ ok: false, error: e.message }),
+    );
+    setTests((prev) => ({ ...prev, [s.id]: result }));
+    if (result.ok) {
+      setServers((prev) =>
+        prev?.map((x) => (x.id === s.id ? { ...x, toolCount: result.tools.length, readOnlyCount: result.readOnly.length } : x)) ?? null,
+      );
+    }
+  };
+
+  const toggleWrites = async (s: PublicMcpServer) => {
+    if (!s.allowWrites && !confirm(`Permitir que o agente crie, altere e apague dados no ${s.label} sem pedir confirmacao?`)) return;
+    const updated = await api<PublicMcpServer>("/api/settings/mcp", "PATCH", { id: s.id, allowWrites: !s.allowWrites });
+    setServers((prev) => prev?.map((x) => (x.id === s.id ? updated : x)) ?? null);
   };
 
   const toggle = async (s: PublicMcpServer) => {
@@ -139,9 +159,23 @@ export function SettingsPage() {
                     <span className="font-medium">{s.label}</span>
                     {s.enabled ? <Badge tone="emerald">Ativo</Badge> : <Badge>Pausado</Badge>}
                     {!s.hasToken && <Badge tone="amber">Sem token</Badge>}
+                    {s.allowWrites ? (
+                      <Badge tone="rose">Pode alterar dados</Badge>
+                    ) : (
+                      <Badge tone="sky">
+                        Somente leitura{s.toolCount ? ` · ${s.readOnlyCount} de ${s.toolCount}` : ""}
+                      </Badge>
+                    )}
                   </div>
                   <p className="truncate text-xs text-zinc-500">{s.connectorId ?? s.url}</p>
+                  <TestLine result={tests[s.id]} />
                 </div>
+                <Button size="sm" onClick={() => test(s)} disabled={tests[s.id] === "testing"}>
+                  {tests[s.id] === "testing" ? <Spinner size={12} /> : <PlugZap size={12} />} Testar
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => toggleWrites(s)}>
+                  {s.allowWrites ? "So leitura" : "Permitir alteracoes"}
+                </Button>
                 <Button size="sm" variant="ghost" onClick={() => toggle(s)}>
                   {s.enabled ? "Pausar" : "Ativar"}
                 </Button>
@@ -229,5 +263,27 @@ export function SettingsPage() {
         </Card>
       </main>
     </div>
+  );
+}
+
+type TestResult = { ok: true; tools: string[]; readOnly: string[] } | { ok: false; error: string };
+
+function TestLine({ result }: { result?: TestResult | "testing" }) {
+  if (!result) return null;
+  if (result === "testing") return <p className="mt-1 text-xs text-zinc-400">Conectando...</p>;
+  if (!result.ok) {
+    return (
+      <p className="mt-1 flex items-start gap-1 text-xs text-rose-300">
+        <CircleAlert size={12} className="mt-0.5 shrink-0" /> {result.error}
+      </p>
+    );
+  }
+  return (
+    <p className="mt-1 flex items-start gap-1 text-xs text-emerald-300" title={result.readOnly.join(", ")}>
+      <Check size={12} className="mt-0.5 shrink-0" />
+      Conectado: {result.tools.length} ferramentas, {result.readOnly.length} de leitura (
+      {result.readOnly.slice(0, 4).join(", ")}
+      {result.readOnly.length > 4 ? ", ..." : ""})
+    </p>
   );
 }

@@ -48,6 +48,11 @@ Em **Conexoes MCP** (`/config`) adicione os sistemas e, em cada reuniao, escolha
 | Google Drive | conector `connector_googledrive` da OpenAI + access token OAuth do Google |
 | HubSpot, Salesforce, Jira e outros | URL do servidor MCP remoto da plataforma + token |
 
+- Cole so o token (se colar `Bearer xyz`, o prefixo e removido).
+- **Testar** conecta pelo mesmo caminho do agente e mostra quantas ferramentas o servidor tem.
+- **Somente leitura** (padrao): o agente responde sozinho enquanto o cliente fala, entao so recebe ferramentas cujo nome indica consulta (`get_`, `search_`, `list_`...). Ferramentas que criam, alteram ou apagam ficam de fora ate voce clicar em **Permitir alteracoes**.
+- MCP entra nas respostas **Profundo** e no briefing. No modo Auto, perguntas sobre dados desses sistemas sao escaladas para Profundo automaticamente.
+
 Tokens ficam so em `data/settings.json`. MCP e documentos funcionam com a OpenAI; com Claude (`ANTHROPIC_API_KEY`) o agente usa contexto e busca na web.
 
 ## Provedores

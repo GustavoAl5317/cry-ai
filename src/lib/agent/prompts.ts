@@ -24,19 +24,22 @@ function meetingContext(meeting?: Meeting | null): string {
   return parts.join("\n");
 }
 
-function toolGuide(tools: { docs: boolean; web: boolean; mcp: string[] }): string {
+type ToolSet = { docs: boolean; web: boolean; mcp: string[]; deferredMcp: string[] };
+
+function toolGuide(tools: ToolSet): string {
   const lines: string[] = [];
   if (tools.docs) lines.push("- Documentos do usuario (file_search): use para perguntas sobre proposta, produto, precos, contratos e dados da empresa.");
   if (tools.web) lines.push("- Busca na web: use para fatos atuais, empresas, noticias, documentacao tecnica e numeros que mudam.");
-  if (tools.mcp.length) lines.push(`- Sistemas conectados via MCP (${tools.mcp.join(", ")}): use para dados de clientes, tarefas, codigo e documentos internos.`);
-  return lines.length ? `\n\n# Ferramentas\n${lines.join("\n")}\nUse ferramentas so quando ajudarem; responda direto quando ja souber.` : "";
+  if (tools.mcp.length) lines.push(`- Sistemas conectados via MCP (${tools.mcp.join(", ")}): consulte-os sempre que o pedido envolver clientes, negocios, tarefas, registros, codigo ou documentos internos. Nao diga que nao tem acesso: use a ferramenta. Em sistemas [somente leitura] voce so consulta; se pedirem para criar ou alterar algo, diga ao usuario o que fazer, sem afirmar que fez.`);
+  const guide = lines.length ? `\n\n# Ferramentas\n${lines.join("\n")}\nUse ferramentas so quando ajudarem; responda direto quando ja souber.` : "";
+  const deferred = tools.deferredMcp.length
+    ? `\n\n# Sistemas conectados (consultados so na resposta profunda)\n${tools.deferredMcp.join(", ")}. Se a fala pedir dados, registros, clientes, negocios, tarefas ou acoes nesses sistemas, responda exatamente ${DEEP}.`
+    : "";
+  return guide + deferred;
 }
 
 /** Stable per meeting, so providers can cache it between calls. */
-export function buildInstructions(
-  meeting: Meeting | null | undefined,
-  tools: { docs: boolean; web: boolean; mcp: string[] },
-): string {
+export function buildInstructions(meeting: Meeting | null | undefined, tools: ToolSet): string {
   return BASE + meetingContext(meeting) + toolGuide(tools);
 }
 
