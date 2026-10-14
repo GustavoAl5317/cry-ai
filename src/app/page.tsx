@@ -1,7 +1,5 @@
+import { MeetingAssistant } from "@/components/MeetingAssistant";
+
 export default function Home() {
-  return (
-    <main>
-      <div>Hello world!</div>
-    </main>
-  );
+  return <MeetingAssistant />;
 }
